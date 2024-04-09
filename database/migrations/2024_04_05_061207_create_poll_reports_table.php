@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('category');
             $table->string('two_hourly')->nullable(); //required only if category is selecteda as: poll percentage
             $table->string('remarks');
-            $table->string('entered_by'); //entered by which user
+            $table->string('entered_by'); //entered by which user get ac and other info
             // $table->string('status')->default('0');
             $table->timestamps();
         });

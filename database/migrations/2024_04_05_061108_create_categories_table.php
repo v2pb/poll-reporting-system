@@ -15,11 +15,12 @@ return new class extends Migration
             $table->id();
             $table->string('category_id');
             $table->string('category_name');
-            $table->string('district_id');
+            $table->string('ac');
+            $table->string('district_id')->nullable();
             $table->boolean('is_active')->default(true);
             $table->string('created_by');
             $table->string('updated_by')->nullable();
-            $table->unique(['category_name', 'district_id']);
+            $table->unique(['category_name', 'ac']);
             $table->timestamps();
         });
     }

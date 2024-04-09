@@ -18,8 +18,8 @@ return new class extends Migration
             $table->string('password');
             $table->string('sectorno')->nullable();
             $table->string('psno')->nullable();
-            $table->string('ac')->nullable(); //assembly constituency
-            $table->string('dist_id'); //districts
+            $table->string('ac'); //assembly constituency
+            $table->string('dist_id')->nullable(); //districts
             $table->string('role_id'); //roles
             $table->string('created_by')->nullable(); //roles
             $table->string('updated_by')->nullable(); //roles
