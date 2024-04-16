@@ -181,7 +181,13 @@ class ApiController extends Controller
         $rules = [
             'id' => 'required|integer|exists:users,id',
             'name' => 'required|string|name_rule|max:255',
-            'phone' => 'required|numeric|phone_rule',
+            'phone' => [
+                'sometimes',
+                'required',
+                'phone_rule',
+                'numeric',
+                Rule::unique('users', 'phone')->ignore(User::where('id', $request->id)->first()->id, 'id'), // Ignore the current user's phone number
+            ],
             'ac' => 'required|integer',
             'is_active' => 'required|in:true,false',
             'sectorno' => 'nullable|integer',
@@ -371,7 +377,13 @@ class ApiController extends Controller
         $rules = [
             'id' => 'required|integer|exists:users,id',
             'name' => 'required|string|name_rule|max:255',
-            'phone' => 'required|numeric|phone_rule',
+            'phone' => [
+                'sometimes',
+                'required',
+                'phone_rule',
+                'numeric',
+                Rule::unique('users', 'phone')->ignore(User::where('id', $request->id)->first()->id, 'id'), // Ignore the current user's phone number
+            ],
             // 'ac' => 'required|integer',
             'is_active' => 'required|in:true,false',
             'sectorno' => 'nullable|integer',
