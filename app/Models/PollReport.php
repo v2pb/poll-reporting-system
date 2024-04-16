@@ -17,11 +17,11 @@ class PollReport extends Model
 
     public function categoryDetail() //link with categories table
     {
-        return $this->belongsTo(Category::class, 'category', 'category_id');
+        return $this->belongsTo(Category::class, 'category', 'id');
     }
 
     public function timeDetail() //link with times table if not null
     {
-        return $this->belongsTo(Time::class, 'two_hourly', 'time_id');
+        return $this->belongsTo(Time::class, 'two_hourly', 'id');
     }
 }
