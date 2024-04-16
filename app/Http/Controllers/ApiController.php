@@ -46,7 +46,7 @@ class ApiController extends Controller
             $decryptedPassword = openssl_decrypt($encryptedPassword, 'aes-256-cbc', $key, OPENSSL_RAW_DATA, $iv);
 
 
-            $decryptedPhone = $request->input('phone'); //for testing please comment this 
+            // $decryptedPhone = $request->input('phone'); //for testing please comment this 
 
 
             $validator = Validator::make(
@@ -54,7 +54,7 @@ class ApiController extends Controller
                 [
                     'phone' => 'required|numeric|phone_rule|exists:users,phone',
                     'password' => 'required|string|password_rule|min:6',
-                    'iv' => ['required', 'string',  Rule::notIn(['<script>', '</script>', 'min:16'])],
+                    'iv' => ['required', 'string', Rule::notIn(['<script>', '</script>', 'min:16'])],
                 ]
             );
 
@@ -110,7 +110,8 @@ class ApiController extends Controller
     /*------------------------------ ADMIN START (ROLE: 100) ------------------------------------*/
 
     //Admin management
-    function register_admin(Request $request) {
+    function register_admin(Request $request)
+    {
 
         $rules = [
             'name' => 'required|string|max:255|name_rule',
@@ -137,7 +138,7 @@ class ApiController extends Controller
         }
 
         // Decrypt the password here before validation
-        $iv = base64_decode($request->input('iv')); 
+        $iv = base64_decode($request->input('iv'));
         $key = base64_decode('XBMJwH94BHjSiVhICx3MfS9i5CaLL5HQjuRt9hiXfIc=');
         $encryptedPassword = base64_decode($request->input('password'));
 
@@ -187,7 +188,7 @@ class ApiController extends Controller
             'sectorno' => 'nullable|integer',
             'psno' => 'nullable|integer',
             'dist_id' => 'nullable|integer',
-            'password' => ['nullable', 'string',  'regex:/^[a-zA-Z0-9\/\r\n+]*={0,2}$/', Rule::notIn(['<script>', '</script>'])],
+            'password' => ['nullable', 'string', 'regex:/^[a-zA-Z0-9\/\r\n+]*={0,2}$/', Rule::notIn(['<script>', '</script>'])],
             'iv' => ['nullable', 'string', Rule::notIn(['<script>', '</script>', 'min:16'])],
             'updated_by' => 'nullable|numeric|phone_rule',
         ];
@@ -225,7 +226,7 @@ class ApiController extends Controller
                 // 'iv' => ['required', 'string', Rule::notIn(['<script>', '</script>', 'min:16'])],
             ];
             $passwordValidator = Validator::make(['password' => $decryptedPassword], $passwordValidationRules);
-    
+
             if ($passwordValidator->fails()) {
                 $firstErrorMessage = $passwordValidator->errors()->first('password');
                 return response()->json(['msg' => $firstErrorMessage], 400);
@@ -246,7 +247,8 @@ class ApiController extends Controller
 
     //user management 
 
-    public function register_user(Request $request) {
+    public function register_user(Request $request)
+    {
 
         $rules = [
             'name' => 'required|string|max:255|name_rule',
@@ -273,7 +275,7 @@ class ApiController extends Controller
         }
 
         // Decrypt the password here before validation
-        $iv = base64_decode($request->input('iv')); 
+        $iv = base64_decode($request->input('iv'));
         $key = base64_decode('XBMJwH94BHjSiVhICx3MfS9i5CaLL5HQjuRt9hiXfIc=');
         $encryptedPassword = base64_decode($request->input('password'));
 
@@ -360,6 +362,8 @@ class ApiController extends Controller
             'name' => $user->name,
             'phone' => $user->phone,
             'ac' => $user->ac,
+            'sectorno' => $user->sectorno,
+            'psno' => $user->psno,
             'is_active' => $user->is_active
         ];
 
@@ -377,7 +381,7 @@ class ApiController extends Controller
             'sectorno' => 'nullable|integer',
             'psno' => 'nullable|integer',
             // 'dist_id' => 'nullable|integer',
-            'password' => ['nullable', 'string',  'regex:/^[a-zA-Z0-9\/\r\n+]*={0,2}$/', Rule::notIn(['<script>', '</script>'])],
+            'password' => ['nullable', 'string', 'regex:/^[a-zA-Z0-9\/\r\n+]*={0,2}$/', Rule::notIn(['<script>', '</script>'])],
             'iv' => ['nullable', 'string', Rule::notIn(['<script>', '</script>', 'min:16'])],
             'updated_by' => 'nullable|numeric|phone_rule|exists:users,phone',
         ];
@@ -439,7 +443,8 @@ class ApiController extends Controller
         return response()->json(['msg' => 'User updated successfully'], 200);
     }
 
-    public function get_register_users_list(Request $request) {
+    public function get_register_users_list(Request $request)
+    {
         $rules = [
             'uuid' => 'required|numeric|phone_rule|exists:users,phone',
         ];
@@ -464,20 +469,20 @@ class ApiController extends Controller
 
         if (!$userACId) {
             return response()->json(['msg' => 'User or Assembly Constituency not found'], 404);
-        } 
+        }
 
         // If the user exists and has the correct role_id, fetch other users excluding this one
         $users = User::where('ac', $userACId)
-                            ->where('role_id', "200")
-                            ->get();
+            ->where('role_id', "200")
+            ->get();
 
-        if ($users->isEmpty()) {
-            return response()->json(['message' => 'Users with the specified Assembly Constituency not found or does not have the required role'], 404);
-        }
+        // if ($users->isEmpty()) {
+        //     return response()->json(['msg' => 'Users with the specified Assembly Constituency not found or does not have the required role'], 404);
+        // }
 
         return response()->json($users);
     }
-    
+
     //category master data management
     public function register_category(Request $request)
     {
@@ -813,7 +818,7 @@ class ApiController extends Controller
         }
 
         $validator = Validator::make($request->all(), $rules);
-        
+
         if ($validator->fails()) {
             return response()->json($validator->errors(), 422);
         }
@@ -830,17 +835,26 @@ class ApiController extends Controller
         }
 
         //entered_by user's AC of poll reports should be the same as requested admin's AC
-        $phones = User::where('role_id', 200)->where('ac',$userACId)->pluck('phone'); //get the phone numbers having same AC as requested Admins
+        $phones = User::where('role_id', 200)->where('ac', $userACId)->pluck('phone'); //get the phone numbers having same AC as requested Admins
 
-        if(PollReport::whereIn('entered_by', $phones)->count()>0){
+        if (PollReport::whereIn('entered_by', $phones)->count() > 0) {
             // Fetch poll reports within the specified date range and related to the Admin's AC
             $poll_reports = PollReport::whereIn('entered_by', $phones)
-                                        //-> whereDate('created_at', '>=', $start)->whereDate('created_at', '<=', $end) //filter date range
-                                        ->orderBy('created_at', 'DESC')
-                                        ->get();
-
-            return response()->json($poll_reports);
-        }else{
+            ->with("categoryDetail","timeDetail")
+                //-> whereDate('created_at', '>=', $start)->whereDate('created_at', '<=', $end) //filter date range
+                ->orderBy('created_at', 'DESC')
+                ->get();
+                $transformed = $poll_reports->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'category' => $item->categoryDetail ? $item->categoryDetail->category_name : null,
+                        'two_hourly' => $item->timeDetail? $item->timeDetail->time_name : null,
+                        'remark' => $item->remarks,
+                    ];
+                });
+    
+                return response()->json($transformed);
+        } else {
             return response()->json(['message' => 'No Poll Reports found for this Assembly Constituency!'], 404);
         }
     }
@@ -877,12 +891,12 @@ class ApiController extends Controller
 
         // Add is_active check to the query
         $categoryList = Category::where('ac', $userACId)
-                            ->where('is_active', true) // Ensure you check for active cells
-                            ->select(
-                                'id as opt_id',
-                                'category_name as opt_name'
-                            )
-                            ->get();
+            ->where('is_active', true) // Ensure you check for active cells
+            ->select(
+                'id as opt_id',
+                'category_name as opt_name'
+            )
+            ->get();
 
         if ($categoryList->isEmpty()) {
             return response()->json(['message' => 'No active categories found for this district'], 404);
@@ -920,12 +934,12 @@ class ApiController extends Controller
 
         // Add is_active check to the query
         $timeList = Time::where('ac', $userACId)
-                            ->where('is_active', true) // Ensure you check for active cells
-                            ->select(
-                                'id as opt_id',
-                                'time_name as opt_name'
-                            )
-                            ->get();
+            ->where('is_active', true) // Ensure you check for active cells
+            ->select(
+                'id as opt_id',
+                'time_name as opt_name'
+            )
+            ->get();
 
         if ($timeList->isEmpty()) {
             return response()->json(['message' => 'No active categories found for this district'], 404);
@@ -934,7 +948,7 @@ class ApiController extends Controller
         return response()->json($timeList, 200);
     }
 
-    public function create_poll_report(Request $request) 
+    public function create_poll_report(Request $request)
     {
         $rules = [
             'category' => 'required|integer|exists:categories,id',
@@ -960,15 +974,15 @@ class ApiController extends Controller
         $enteredBy = $request->input('entered_by');
 
         $user = User::where('phone', $enteredBy)->first();
-        
+
         if (!$user) {
             return response()->json(['message' => 'User not found'], 404);
         }
-        
+
         // $userACId = $user->ac;
         $reportData = $validator->validated();
 
-       PollReport::create($reportData);
+        PollReport::create($reportData);
 
         return response()->json(['message' => 'Poll Status Report has been send successfully!'], 200);
     }
@@ -991,7 +1005,7 @@ class ApiController extends Controller
         }
 
         $validator = Validator::make($request->all(), $rules);
-        
+
         if ($validator->fails()) {
             return response()->json($validator->errors(), 422);
         }
@@ -1000,16 +1014,25 @@ class ApiController extends Controller
         // $end = $request->input("end");
         $userPhone = $request->input("requested_by"); //get the logged in User's phone no.
 
-        if(PollReport::where('entered_by', $userPhone)->count()>0){
+        if (PollReport::where('entered_by', $userPhone)->count() > 0) {
             // Fetch poll reports sent by them
             $poll_reports = PollReport::where('entered_by', $userPhone)
-                                        //-> whereDate('created_at', '>=', $start)->whereDate('created_at', '<=', $end) //filter date range
-                                        ->orderBy('created_at', 'DESC')
-                                        ->get();
-                                       
-            return response()->json($poll_reports);
-        }else{
-            return response()->json(['message' => 'No Poll Reports sent by User'], 404);
+                ->with("categoryDetail","timeDetail")
+                ->orderBy('created_at', 'DESC')
+                ->get();
+
+            $transformed = $poll_reports->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'category' => $item->categoryDetail ? $item->categoryDetail->category_name : null,
+                    'two_hourly' => $item->timeDetail? $item->timeDetail->time_name : null,
+                    'remark' => $item->remarks,
+                ];
+            });
+
+            return response()->json($transformed);
+        } else {
+            return response()->json(['msg' => 'No Poll Reports sent by User'], 404);
         }
     }
 
