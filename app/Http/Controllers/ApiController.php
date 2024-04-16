@@ -46,7 +46,7 @@ class ApiController extends Controller
             $decryptedPassword = openssl_decrypt($encryptedPassword, 'aes-256-cbc', $key, OPENSSL_RAW_DATA, $iv);
 
 
-            // $decryptedPhone = $request->input('phone'); //for testing please comment this 
+            $decryptedPhone = $request->input('phone'); //for testing please comment this 
 
 
             $validator = Validator::make(
@@ -437,6 +437,45 @@ class ApiController extends Controller
         $user->update($dataToUpdate);
 
         return response()->json(['msg' => 'User updated successfully'], 200);
+    }
+
+    public function get_register_users_list(Request $request) {
+        $rules = [
+            'uuid' => 'required|numeric|phone_rule|exists:users,phone',
+        ];
+
+        // Define the allowed parameters
+        $allowedParams = array_keys($rules); //['uuid'];
+
+        // Check if the request only contains the allowed parameters
+        if (count($request->all()) !== count($allowedParams) || !empty(array_diff(array_keys($request->all()), $allowedParams))) {
+            return response()->json(['error' => 'Invalid number of parameters or unrecognized parameter provided.'], 422);
+        }
+
+        $validator = Validator::make($request->all(), $rules);
+
+        if ($validator->fails()) {
+            return response()->json(['msg' => $validator->errors()->first()], 400);
+        }
+
+        $data = $validator->validated();
+
+        $userACId = User::where('phone', $request->uuid)->value('ac');
+
+        if (!$userACId) {
+            return response()->json(['msg' => 'User or Assembly Constituency not found'], 404);
+        } 
+
+        // If the user exists and has the correct role_id, fetch other users excluding this one
+        $users = User::where('ac', $userACId)
+                            ->where('role_id', "200")
+                            ->get();
+
+        if ($users->isEmpty()) {
+            return response()->json(['message' => 'Users with the specified Assembly Constituency not found or does not have the required role'], 404);
+        }
+
+        return response()->json($users);
     }
     
     //category master data management
