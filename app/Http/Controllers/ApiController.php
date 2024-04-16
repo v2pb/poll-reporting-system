@@ -38,7 +38,7 @@ class ApiController extends Controller
         try {
             $encryptedPhone = base64_decode($request->input('phone'));
             $encryptedPassword = base64_decode($request->input('password'));
-            $user_role_string = $request->input('user_role');
+            // $user_role_string = $request->input('user_role');
             $iv = base64_decode($request->input('iv'));
             $key = base64_decode('XBMJwH94BHjSiVhICx3MfS9i5CaLL5HQjuRt9hiXfIc=');
 
