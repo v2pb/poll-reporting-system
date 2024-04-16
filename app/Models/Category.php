@@ -15,6 +15,8 @@ class Category extends Model
         return $this->belongsTo(District::class, 'district_id', 'district_id');
     }
 
+    
+
     public function acDetails()
     {
         return $this->belongsTo(AssemblyConstituency::class, 'ac', 'ac_id');
