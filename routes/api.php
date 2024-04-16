@@ -20,6 +20,9 @@ use App\Http\Controllers\ApiController;
 // });
 
 Route::middleware('admin')->group(function () {
+    Route::post('admin_update', [ApiController::class, 'admin_update']);
+    Route::post('get_admin_data', [ApiController::class, 'get_admin_data']);
+
 
     Route::post('register_admin', [ApiController::class, 'register_admin']);
     Route::post('update_admin', [ApiController::class, 'update_admin']);

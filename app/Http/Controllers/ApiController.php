@@ -25,6 +25,123 @@ use Tymon\JWTAuth\Exceptions\TokenExpiredException;
 class ApiController extends Controller
 {
     /*--------------------------------- COMMON START -------------------------------------*/
+
+
+    public function admin_update(Request $request)
+    {
+        //! min
+        // Define the allowed parameters
+        $allowedParams = ['old_number', 'new_number', 'name' , "password", "iv"]; // Include 'iv' if you're encrypting the password client-side
+
+        // Check if the request only contains the allowed parameters
+        if (count($request->all()) !== count($allowedParams) || !empty(array_diff(array_keys($request->all()), $allowedParams))) {
+            return response()->json(['msg' => 'Invalid number of parameters or unrecognized parameter provided.'], 422);
+        }
+
+        $rules = [
+            'old_number' => 'required|digits:10|numeric|exists:users,phone',
+            'new_number' => 'required|digits:10|numeric',
+            'name' => 'required|string|regex:/^[A-Za-z ]+$/',
+        ];
+        $validator = Validator::make($request->all(), $rules);
+
+        if ($validator->fails()) {
+            $firstErrorMessage = $validator->errors()->first();
+            return response()->json(['msg' => $firstErrorMessage], 400);
+        }
+
+        $user = User::where('phone', $request->old_number)->first();
+
+        if (!$user) {
+            return response()->json(['msg' => 'User with phone number ' . $request->old_number . ' not found'], 404);
+        }
+
+        if ($user->role_id != "100") {
+            return response()->json(['msg' => 'Unauthorized'], 401);
+        }
+
+        // Initialize data to update with name; may add phone later if conditions are met
+        $dataToUpdate = [
+            'name' => $request->name,
+        ];
+
+        if ($request->old_number != $request->new_number) {
+            $phoneExists = User::where('phone', $request->new_number)->exists();
+            if ($phoneExists) {
+                return response()->json(['msg' => 'The new phone number is already in use'], 400);
+            }
+            $dataToUpdate['phone'] = $request->new_number;
+        }
+
+        if ($request->filled('password')) {
+   
+            $iv = base64_decode($request->input('iv'));
+            $key = base64_decode('XBMJwH94BHjSiVhICx3MfS9i5CaLL5HQjuRt9hiXfIc=');
+            $encryptedPassword = base64_decode($request->input('password'));
+
+            // Decrypt the password
+            $decryptedPassword = openssl_decrypt($encryptedPassword, 'aes-256-cbc', $key, OPENSSL_RAW_DATA, $iv);
+
+
+            $passwordValidationRules = [
+                'password' => ['required', 'string', 'min:6', 'regex:/^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>]).+$/'],
+                //'iv' => ['required', 'string', Rule::notIn(['<script>', '</script>', 'min:16'])],
+            ];
+            $passwordValidator = Validator::make(['password' => $decryptedPassword], $passwordValidationRules);
+
+            if ($passwordValidator->fails()) {
+                $firstErrorMessage = $passwordValidator->errors()->first('password');
+                return response()->json(['msg' => $firstErrorMessage], 400);
+            }
+            // $dataToUpdate['password'] = $decryptedPassword;
+        }
+
+        $user->update($dataToUpdate);
+
+        return response()->json(['msg' => 'User updated successfully'], 200);
+    }
+
+    public function get_admin_data(Request $request)
+    {
+        // Define the allowed parameters
+        $allowedParams = ['phone'];
+
+        // Check if the request only contains the allowed parameters
+        if (count($request->all()) !== count($allowedParams) || !empty(array_diff(array_keys($request->all()), $allowedParams))) {
+            return response()->json(['error' => 'Invalid number of parameters or unrecognized parameter provided.'], 422);
+        }
+
+        $rules = [
+            'phone' => 'required|digits:10|numeric|exists:users,phone',
+        ];
+
+        $validator = Validator::make($request->all(), $rules);
+
+        if ($validator->fails()) {
+            $firstErrorMessage = $validator->errors()->first();
+            return response()->json(['msg' => $firstErrorMessage], 400);
+        }
+        $user = User::where('phone', $request->input('phone'))->first();
+
+        if (!$user) {
+            return response()->json(['message' => 'User not found'], 404);
+        }
+        if ($user->role_id != '100') {
+            return response()->json(['message' => 'The selected phone is invalid for the required role.'], 403);
+        }
+
+        $transformedUser = [
+            'name' => $user->name,
+            'phone' => $user->phone,
+        ];
+
+        return response()->json($transformedUser);
+    }
+
+
+
+
+
     public function login(Request $request)
     {
         // Define the allowed parameters
@@ -187,7 +304,7 @@ class ApiController extends Controller
                 'required',
                 'phone_rule',
                 'numeric',
-                Rule::unique('users', 'phone')->ignore(User::where('id', $request->id)->first()->id, 'id'), // Ignore the current user's phone number
+                 Rule::unique('users', 'phone')->ignore(User::where('id', $request->id)->first() ? User::where('id', $request->id)->first()->id : null, 'id'), // Ignore the current user's phone number
             ],
             'ac' => 'required|integer',
             'is_active' => 'required|in:true,false',
@@ -348,7 +465,8 @@ class ApiController extends Controller
         $validator = Validator::make($request->all(), $rules);
 
         if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
+            $firstErrorMessage = $validator->errors()->first();
+            return response()->json(['msg' => $firstErrorMessage], 400);
         }
         $user = User::where('id', $request->input('id'))->first();
 
@@ -386,7 +504,7 @@ class ApiController extends Controller
                 'required',
                 'phone_rule',
                 'numeric',
-                Rule::unique('users', 'phone')->ignore(User::where('id', $request->id)->first()->id, 'id'), // Ignore the current user's phone number
+                 Rule::unique('users', 'phone')->ignore(User::where('id', $request->id)->first() ? User::where('id', $request->id)->first()->id : null, 'id'), // Ignore the current user's phone number
             ],
             // 'ac' => 'required|integer',
             'is_active' => 'required|in:true,false',
@@ -525,7 +643,8 @@ class ApiController extends Controller
         $validator = Validator::make($request->all(), $rules);
 
         if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
+            $firstErrorMessage = $validator->errors()->first();
+            return response()->json(['msg' => $firstErrorMessage], 400);
         }
 
         $categoryData = $validator->validated();
@@ -561,7 +680,8 @@ class ApiController extends Controller
         $validator = Validator::make($request->all(), $rules);
 
         if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
+            $firstErrorMessage = $validator->errors()->first();
+            return response()->json(['msg' => $firstErrorMessage], 400);
         }
 
         $categoryDetails = Category::where('id', $request->category_id)->first();
@@ -636,7 +756,8 @@ class ApiController extends Controller
         $validator = Validator::make($request->all(), $rules);
 
         if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
+            $firstErrorMessage = $validator->errors()->first();
+            return response()->json(['msg' => $firstErrorMessage], 400);
         }
 
         $userACId = User::where('phone', $request->phone)->value('ac');
@@ -683,7 +804,8 @@ class ApiController extends Controller
         $validator = Validator::make($request->all(), $rules);
 
         if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
+            $firstErrorMessage = $validator->errors()->first();
+            return response()->json(['msg' => $firstErrorMessage], 400);
         }
 
         $timeData = $validator->validated();
@@ -719,7 +841,8 @@ class ApiController extends Controller
         $validator = Validator::make($request->all(), $rules);
 
         if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
+            $firstErrorMessage = $validator->errors()->first();
+            return response()->json(['msg' => $firstErrorMessage], 400);
         }
 
         $timeDetails = Time::where('id', $request->time_id)->first();
@@ -794,7 +917,8 @@ class ApiController extends Controller
         $validator = Validator::make($request->all(), $rules);
 
         if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
+            $firstErrorMessage = $validator->errors()->first();
+            return response()->json(['msg' => $firstErrorMessage], 400);
         }
 
         $userACId = User::where('phone', $request->phone)->value('ac');
@@ -832,7 +956,8 @@ class ApiController extends Controller
         $validator = Validator::make($request->all(), $rules);
 
         if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
+            $firstErrorMessage = $validator->errors()->first();
+            return response()->json(['msg' => $firstErrorMessage], 400);
         }
 
         // $start = $request->input("start");
@@ -891,7 +1016,8 @@ class ApiController extends Controller
         $validator = Validator::make($request->all(), $rules);
 
         if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
+            $firstErrorMessage = $validator->errors()->first();
+            return response()->json(['msg' => $firstErrorMessage], 400);
         }
 
         // Assuming you're using 'phone' from $request->all(), but you should use $request->input('phone')
@@ -934,7 +1060,8 @@ class ApiController extends Controller
         $validator = Validator::make($request->all(), $rules);
 
         if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
+            $firstErrorMessage = $validator->errors()->first();
+            return response()->json(['msg' => $firstErrorMessage], 400);
         }
 
         // Assuming you're using 'phone' from $request->all(), but you should use $request->input('phone')
@@ -964,7 +1091,18 @@ class ApiController extends Controller
     {
         $rules = [
             'category' => 'required|integer|exists:categories,id',
-            'two_hourly' => 'nullable|integer|exists:times,id', //required_if:category,1
+            'two_hourly' => [
+                'nullable',
+                'integer',
+                function ($attribute, $value, $fail) {
+                    if ($value != 0 && !Rule::exists('times', 'id')->where('id', $value)->exists()) {
+                        $fail('The selected ' . $attribute . ' is invalid.');
+                    }
+                },
+            ],
+    
+    
+            // 'two_hourly' => 'nullable|integer|exists:times,id', //required_if:category,1
             'remarks' => 'required|string|remarks_rule|max:255',
             'entered_by' => 'required|phone_rule|numeric|exists:users,phone',
         ];
@@ -980,7 +1118,8 @@ class ApiController extends Controller
         $validator = Validator::make($request->all(), $rules);
 
         if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
+            $firstErrorMessage = $validator->errors()->first();
+            return response()->json(['msg' => $firstErrorMessage], 400);
         }
 
         $enteredBy = $request->input('entered_by');
@@ -1019,7 +1158,8 @@ class ApiController extends Controller
         $validator = Validator::make($request->all(), $rules);
 
         if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
+            $firstErrorMessage = $validator->errors()->first();
+            return response()->json(['msg' => $firstErrorMessage], 400);
         }
 
         // $start = $request->input("start");
