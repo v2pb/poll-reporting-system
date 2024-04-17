@@ -1112,11 +1112,11 @@ class ApiController extends Controller
             'two_hourly' => [
                 'nullable',
                 'integer',
-                function ($attribute, $value, $fail) {
-                    if ($value != 0 && !Rule::exists('times', 'id')->where('id', $value)->exists()) {
-                        $fail('The selected ' . $attribute . ' is invalid.');
-                    }
-                },
+                // function ($attribute, $value, $fail) {
+                //     if ($value != 0 && !Rule::exists('times', 'id')->where('id', $value)->exists()) {
+                //         $fail('The selected ' . $attribute . ' is invalid.');
+                //     }
+                // },
             ],
     
     
