@@ -699,7 +699,16 @@ class ApiController extends Controller
         $rules = [
             'id' => 'required|integer|exists:categories,id',
             'category_id' => 'required|integer',
-            'category_name' => 'required|string|remarks_rule',
+            'category_name' => [
+                'sometimes',
+                'required',
+                'remarks_rule',
+                'string',
+                Rule::unique('categories')->where(function ($query) use ($request) {
+                    return $query->where('category_name', $request->category_name)
+                                    ->where('ac', Category::where('id', $request->id)->value('ac'));
+                })->ignore(Category::where('id', $request->id)->first() ? Category::where('id', $request->id)->first()->id : null, 'id'), // Ignore the current Category ID when updating
+            ],
             'is_active' => 'required|string|in:true,false',
             'updated_by' => 'required|digits:10|numeric|exists:users,phone',
         ];
@@ -860,7 +869,16 @@ class ApiController extends Controller
         $rules = [
             'id' => 'required|integer|exists:times,id',
             'time_id' => 'required|integer',
-            'time_name' => 'required|string|remarks_rule',
+            'time_name' => [
+                'sometimes',
+                'required',
+                'remarks_rule',
+                'string',
+                Rule::unique('times')->where(function ($query) use ($request) {
+                    return $query->where('time_name', $request->time_name)
+                                    ->where('ac', Time::where('id', $request->id)->value('ac'));
+                })->ignore(Time::where('id', $request->id)->first() ? Time::where('id', $request->id)->first()->id : null, 'id'), // Ignore the current Time ID when updating
+            ],
             'is_active' => 'required|string|in:true,false',
             'updated_by' => 'required|digits:10|numeric|exists:users,phone',
         ];
