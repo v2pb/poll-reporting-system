@@ -75,9 +75,9 @@ class Handler extends ExceptionHandler
             return response()->json(['msg' => 'Too many requests, please try again after 5 min.'], Response::HTTP_TOO_MANY_REQUESTS, $response->headers->all());
         
         }
-        // else if($exception instanceof \Exception) {
-        //     return response()->json(['msg' => 'Something went wrong.'], 400); //bad request
-        // }
+        else if($exception instanceof \Exception) {
+            return response()->json(['msg' => 'Something went wrong.'], 400); //bad request
+        }
 
         return parent::render($request, $exception);
 
