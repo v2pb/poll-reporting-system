@@ -591,7 +591,7 @@ class ApiController extends Controller
             }
 
             // Hash the decrypted password before updating
-            $dataToUpdate['password'] = $decryptedPassword;
+            $dataToUpdate['password'] = bcrypt($decryptedPassword);
         }
 
         $user->update($dataToUpdate);
