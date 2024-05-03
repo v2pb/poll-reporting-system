@@ -412,7 +412,7 @@ class ApiController extends Controller
         $roleList = Role::whereNot('role_id', 100)
                                 ->where('status', true) // Ensure you check for active cells
                                 ->select(
-                                    'id as opt_id',
+                                    'role_id as opt_id',
                                     'role_name as opt_name'
                                 )
                                 ->get();
