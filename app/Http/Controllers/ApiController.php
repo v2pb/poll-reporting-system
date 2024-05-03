@@ -180,7 +180,7 @@ class ApiController extends Controller
             }
 
             $hashedPhone = hash('sha256', $decryptedPhone); //uncomment
-            $decryptedPhone = $hashedPhone; 
+            // $decryptedPhone = $hashedPhone; //comment
 
             //$user = User::where('phone', $hashedPhone)->first();
             $user = User::where('phone', $decryptedPhone)->first();
@@ -336,11 +336,11 @@ class ApiController extends Controller
             'id' => 'required|integer|exists:users,id',
             'name' => 'required|string|name_rule|max:255',
             'phone' => [
-                'sometimes',
+                // 'sometimes',
                 'required',
                 'phone_rule',
                 'numeric',
-                 Rule::unique('users', 'phone')->ignore(User::where('id', $request->id)->first() ? User::where('id', $request->id)->first()->id : null, 'id'), // Ignore the current user's phone number
+                //  Rule::unique('users', 'phone')->ignore(User::where('id', $request->id)->first() ? User::where('id', $request->id)->first()->id : null, 'id'), // Ignore the current user's phone number
             ],
             'ac' => 'required|integer',
             'is_active' => 'required|in:true,false',
@@ -361,6 +361,17 @@ class ApiController extends Controller
         }
 
         $validator = Validator::make($request->all(), $rules);
+
+        $validator->after(function ($validator) use ($request) { // Add custom validation to check the file size
+            $hashedPhone = hash('sha256', $request->phone);
+
+            if (User::where('phone', $hashedPhone)
+                    ->whereNot('id',$request->id)
+                    ->count() != 0
+                ) { 
+                $validator->errors()->add('phone', 'The phone number is already taken.');
+            }
+        });
 
         if ($validator->fails()) {
             return response()->json(['msg' => $validator->errors()->first()], 400);
