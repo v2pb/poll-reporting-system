@@ -47,9 +47,11 @@ Route::middleware('admin')->group(function () {
 
     //Poll Status Reports
     Route::post('view_poll_reports', [ApiController::class, 'view_poll_reports']);
+    Route::post('dispose', [ApiController::class, 'dispose']);
 });
 
 Route::middleware('user')->group(function () {
+    Route::post('dispose_user', [ApiController::class, 'dispose_user']);
     Route::post('create_poll_report', [ApiController::class, 'create_poll_report']);
     Route::post('display_poll_status_reports', [ApiController::class, 'display_poll_status_reports']);
     Route::post('get_dropdown_categories', [ApiController::class, 'get_dropdown_categories']);

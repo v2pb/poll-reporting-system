@@ -76,7 +76,7 @@ class Handler extends ExceptionHandler
         
         }
         else if($exception instanceof \Exception) {
-            return response()->json(['msg' => 'Something went wrong.'], 400); //bad request
+            return response()->json(['msg' => 'Something went wrong!!!.'], 400); //bad request
         }
 
         return parent::render($request, $exception);

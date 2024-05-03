@@ -170,7 +170,7 @@ class ApiController extends Controller
             $validator = Validator::make(
                 ['phone' => $decryptedPhone, 'password' => $decryptedPassword, 'iv' => $request->input('iv')],
                 [
-                    'phone' => 'required|numeric|phone_rule|exists:users,phone',
+                    'phone' => 'required|numeric|phone_rule',
                     'password' => 'required|string|password_rule|min:6',
                     'iv' => ['required', 'string', Rule::notIn(['<script>', '</script>', 'min:16'])],
                 ]
@@ -181,6 +181,10 @@ class ApiController extends Controller
                 return response()->json(['msg' => $firstErrorMessage], 400);
             }
 
+            $hashedPhone = hash('sha256', $decryptedPhone); //uncomment
+            $decryptedPhone = $hashedPhone; 
+
+            //$user = User::where('phone', $hashedPhone)->first();
             $user = User::where('phone', $decryptedPhone)->first();
 
             if (!$user) {
@@ -218,31 +222,31 @@ class ApiController extends Controller
             }
 
             //before login attempt check if user already has active token, if yes make it invalid also delete the entry from token management table
-            if (TokenManagement::where('userid', $decryptedPhone)->count() > 0) {
-                $oldToken = TokenManagement::where('userid', $decryptedPhone)->first()->active_token;
-                try { //check if the token is already expired
-                    JWTAuth::setToken($oldToken)->invalidate();
-                } catch (TokenExpiredException $e) {
-                    //token has already expired
-                }
-                TokenManagement::where('userid', $decryptedPhone)->firstorfail()->delete();
-            }
+            // if (TokenManagement::where('userid', $decryptedPhone)->count() > 0) {
+            //     $oldToken = TokenManagement::where('userid', $decryptedPhone)->first()->active_token;
+            //     try { //check if the token is already expired
+            //         JWTAuth::setToken($oldToken)->invalidate();
+            //     } catch (TokenExpiredException $e) {
+            //         //token has already expired
+            //     }
+            //     TokenManagement::where('userid', $decryptedPhone)->firstorfail()->delete();
+            // }
 
-            //before sending response store the new token in the token management table
-            $tokenEntry = new TokenManagement();
-            $tokenEntry->userid = $decryptedPhone;
-            $tokenEntry->active_token = $token;
+            // //before sending response store the new token in the token management table
+            // $tokenEntry = new TokenManagement();
+            // $tokenEntry->userid = $decryptedPhone;
+            // $tokenEntry->active_token = $token;
 
             //log 
             $log_user->is_login_successful = true;
             $log_user->save();
 
-            if ($tokenEntry->save()) {
+            //if ($tokenEntry->save()) {
                 $user = User::where('phone', $decryptedPhone)->first();
                 return response()->json(['token' => $token, 'role' => $user['role_id'], "name" => $user["name"], "msg" => "Successful"], 200);
-            } else {
-                return response()->json(['msg' => 'The Token details could not be saved!'], 401);
-            }
+            //} else {
+                //return response()->json(['msg' => 'The Token details could not be saved!'], 401);
+            //}
         } catch (\Exception $e) {
 
             return response()->json(['msg' => 'Something went wrong!'], 400);
@@ -265,11 +269,11 @@ class ApiController extends Controller
                 'password_rule',
             ],
             'iv' => ['required', 'string', Rule::notIn(['<script>', '</script>', 'min:16'])],
-            'sectorno' => 'nullable|integer',
-            'psno' => 'nullable|integer',
+            'sectorno' => 'nullable|remarks_rule',
+            'psno' => ['nullable',Rule::notIn(['<script>', '</script>', 'min:16'])],
             'ac' => 'required|integer',
             'dist_id' => 'nullable|integer',
-            'created_by' => 'nullable|phone_rule|numeric',
+            'created_by' => 'nullable',
         ];
 
         // Define the allowed parameters
@@ -297,6 +301,14 @@ class ApiController extends Controller
 
         $validator = Validator::make($dataToValidate, $rules);
 
+        $validator->after(function ($validator) use ($request) { // Add custom validation to check the file size
+            $hashedPhone = hash('sha256', $request->phone);
+
+            if (User::where('phone', $hashedPhone)->count() != 0) { 
+                $validator->errors()->add('phone', 'The phone number is already taken.');
+            }
+        });
+
         if ($validator->fails()) {
             $firstErrorMessage = $validator->errors()->first();
             return response()->json(['msg' => $firstErrorMessage], 400);
@@ -305,7 +317,7 @@ class ApiController extends Controller
         // Proceed to create the user with the decrypted and hashed password
         $user = new User([
             'name' => $request->name,
-            'phone' => $request->phone,
+            'phone' => hash('sha256', $request->phone),
             'password' => bcrypt($decryptedPassword),
             'ac' => $request->ac,
             'role_id' => 100, // 100 role_id for Admin
@@ -334,12 +346,12 @@ class ApiController extends Controller
             ],
             'ac' => 'required|integer',
             'is_active' => 'required|in:true,false',
-            'sectorno' => 'nullable|integer',
-            'psno' => 'nullable|integer',
+            'sectorno' => 'nullable|remarks_rule',
+            'psno' => ['nullable',Rule::notIn(['<script>', '</script>', 'min:16'])],
             'dist_id' => 'nullable|integer',
             'password' => ['nullable', 'string', 'regex:/^[a-zA-Z0-9\/\r\n+]*={0,2}$/', Rule::notIn(['<script>', '</script>'])],
             'iv' => ['nullable', 'string', Rule::notIn(['<script>', '</script>', 'min:16'])],
-            'updated_by' => 'nullable|numeric|phone_rule',
+            'updated_by' => 'nullable',
         ];
 
         // Define the allowed parameters
@@ -383,13 +395,13 @@ class ApiController extends Controller
             $user->password = bcrypt($decryptedPassword);
         }
         $user->name = $request->input('name');
-        $user->phone = $request->input('phone');
+        $user->phone = hash('sha256', $request->phone);
         $user->ac = $request->input('ac');
         $user->is_active = $request->input('is_active') === 'true'; // Convert string boolean to actual boolean
         $user->psno = $request->input('psno');
         $user->sectorno = $request->input('sectorno');
         $user->dist_id = $request->input('dist_id');
-        $user->updated_by = $request->input('updated_by');
+        $user->updated_by = JWTauth::user()->id;
         $user->save();
         return response()->json(['message' => 'User updated successfully']);
     }
@@ -401,18 +413,18 @@ class ApiController extends Controller
 
         $rules = [
             'name' => 'required|string|max:255|name_rule',
-            'phone' => 'required|numeric|phone_rule|unique:users',
+            'phone' => 'required|numeric|phone_rule',
             'password' => [
                 'required',
                 'min:6',
                 'password_rule',
             ],
             'iv' => ['required', 'string', Rule::notIn(['<script>', '</script>', 'min:16'])],
-            'sectorno' => 'nullable|integer',
-            'psno' => 'nullable|integer',
+            'sectorno' => 'nullable|remarks_rule',
+            'psno' => 'nullable|remarks_rule',
             // 'ac' => 'required|integer', //get from created_by admin
             // 'dist_id' => 'nullable|integer', //get from created_by admin
-            'created_by' => 'required|phone_rule|numeric|exists:users,phone',
+            'created_by' => 'required',
         ];
 
         // Define the allowed parameters
@@ -440,6 +452,14 @@ class ApiController extends Controller
 
         $validator = Validator::make($dataToValidate, $rules);
 
+        $validator->after(function ($validator) use ($request) { // Add custom validation to check the file size
+        $hashedPhone = hash('sha256', $request->phone);
+
+            if (User::where('phone', $hashedPhone)->count() != 0) { 
+                $validator->errors()->add('phone', 'The phone number is already taken.');
+            }
+        });
+
         if ($validator->fails()) {
             $firstErrorMessage = $validator->errors()->first();
             return response()->json(['msg' => $firstErrorMessage], 400);
@@ -447,31 +467,92 @@ class ApiController extends Controller
 
         //get AC and District from the Created by Admin
 
-        $userACId = User::where('phone', $request->created_by)->value('ac');
+        $userACId = User::where('id', JWTauth::user()->id)->value('ac');
 
         if (!$userACId) {
             return response()->json(['msg' => 'User or Assembly Constituency not found'], 404);
         }
 
         //if district available
-        $userDistrictId = User::where('phone', $request->created_by)->value('dist_id');
+        $userDistrictId = User::where('id', JWTauth::user()->id)->value('dist_id');
 
         // Proceed to create the user with the decrypted and hashed password
         $user = new User([
             'name' => $request->name,
-            'phone' => $request->phone,
+            'phone' => hash('sha256', $request->phone),
             'password' => bcrypt($decryptedPassword),
             'ac' => $userACId,
             'role_id' => 200, // 200 role_id for User
             'sectorno' => $request->sectorno,
             'psno' => $request->psno,
             'dist_id' => $userDistrictId,
-            'created_by' => $request->created_by,
+            'created_by' => JWTauth::user()->id,
         ]);
 
         $user->save();
 
         return response()->json(['msg' => "Success"], 201);
+    }
+
+    public function dispose(Request $request)
+    {
+        // $rules = [
+        //     'id' => 'required|string|exists:poll_report,id',
+        // ];
+        $rules = [
+                 'id' => 'required|string',
+            ];
+
+        $validator = Validator::make($request->all(), $rules);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+
+        $poll_report = PollReport::where('id', $request->input('id'))->first();
+
+
+        if (!$poll_report) {
+            return response()->json(['message' => 'Record not found'], 404);
+        }
+
+        // Update the dispose_status to 1
+        $poll_report->active = 0;
+        $poll_report->save(); // Save the changes to the database
+
+
+        return response()->json(['message' => 'Record deleted successfully'], 200);
+    }
+    public function dispose_user(Request $request)
+    {
+        // $rules = [
+        //     'id' => 'required|string|exists:poll_report,id',
+        // ];
+        $rules = [
+                 'id' => 'required|string',
+            ];
+
+        $validator = Validator::make($request->all(), $rules);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+
+        $poll_report = PollReport::where('id', $request->input('id'))->first();
+
+
+        if (!$poll_report) {
+            return response()->json(['message' => 'Record not found'], 404);
+        }
+
+        // Update the dispose_status to 1
+        $poll_report->active = 0;
+        $poll_report->save(); // Save the changes to the database
+
+
+        return response()->json(['message' => 'Record deleted successfully'], 200);
     }
 
     public function get_user_data(Request $request)
@@ -510,7 +591,7 @@ class ApiController extends Controller
         $transformedUser = [
             'id' => $user->id,
             'name' => $user->name,
-            'phone' => $user->phone,
+            'phone' => hash('sha256', $user->phone),
             'ac' => $user->ac,
             'sectorno' => $user->sectorno,
             'psno' => $user->psno,
@@ -526,20 +607,20 @@ class ApiController extends Controller
             'id' => 'required|integer|exists:users,id',
             'name' => 'required|string|name_rule|max:255',
             'phone' => [
-                'sometimes',
+                //'sometimes',
                 'required',
                 'phone_rule',
                 'numeric',
-                 Rule::unique('users', 'phone')->ignore(User::where('id', $request->id)->first() ? User::where('id', $request->id)->first()->id : null, 'id'), // Ignore the current user's phone number
+                 //Rule::unique('users', 'phone')->ignore(User::where('id', $request->id)->first() ? User::where('id', //$request->id)->first()->id : null, 'id'), // Ignore the current user's phone number
             ],
             // 'ac' => 'required|integer',
             'is_active' => 'required|in:true,false',
-            'sectorno' => 'nullable|integer',
-            'psno' => 'nullable|integer',
+            'sectorno' => 'nullable|remarks_rule',
+            'psno' => 'nullable|remarks_rule',
             // 'dist_id' => 'nullable|integer',
             'password' => ['nullable', 'string', 'regex:/^[a-zA-Z0-9\/\r\n+]*={0,2}$/', Rule::notIn(['<script>', '</script>'])],
             'iv' => ['nullable', 'string', Rule::notIn(['<script>', '</script>', 'min:16'])],
-            'updated_by' => 'nullable|numeric|phone_rule|exists:users,phone',
+            'updated_by' => 'nullable',
         ];
 
         $allowedParams = array_keys($rules);
@@ -548,8 +629,19 @@ class ApiController extends Controller
         if (count(array_intersect(array_keys($request->all()), $allowedParams)) !== count($request->all())) {
             return response()->json(['error' => 'Invalid number of parameters or unrecognized parameter provided.'], 422);
         }
-
         $validator = Validator::make($request->all(), $rules);
+        $validator->after(function ($validator) use ($request) { // Add custom validation to check the file size
+            $hashedPhone = hash('sha256', $request->phone);
+
+            if (User::where('phone', $hashedPhone)
+                    ->whereNot('id',$request->id)
+                    ->count() != 0
+                ) { 
+                $validator->errors()->add('phone', 'The phone number is already taken.');
+            }
+        });
+
+        
 
         if ($validator->fails()) {
             $firstErrorMessage = $validator->errors()->first();
@@ -563,11 +655,11 @@ class ApiController extends Controller
 
         $dataToUpdate = [
             'name' => $request->name,
-            'phone' => $request->phone,
+            'phone' => hash('sha256', $request->phone),
             'sectorno' => $request->sectorno,
             'psno' => $request->psno,
             'is_active' => $request->is_active === 'true', // Ensure boolean value is correctly interpreted
-            'updated_by' => $request->updated_by,
+            'updated_by' =>  JWTauth::user()->id,
         ];
 
         if ($request->filled('password')) {
@@ -591,7 +683,7 @@ class ApiController extends Controller
             }
 
             // Hash the decrypted password before updating
-            $dataToUpdate['password'] = $decryptedPassword;
+            $dataToUpdate['password'] = bcrypt($decryptedPassword);
         }
 
         $user->update($dataToUpdate);
@@ -602,7 +694,7 @@ class ApiController extends Controller
     public function get_register_users_list(Request $request)
     {
         $rules = [
-            'uuid' => 'required|numeric|phone_rule|exists:users,phone',
+            'uuid' => 'required',
         ];
 
         // Define the allowed parameters
@@ -621,7 +713,7 @@ class ApiController extends Controller
 
         $data = $validator->validated();
 
-        $userACId = User::where('phone', $request->uuid)->value('ac');
+        $userACId = User::where('id',  JWTauth::user()->id)->value('ac');
 
         if (!$userACId) {
             return response()->json(['msg' => 'User or Assembly Constituency not found'], 404);
@@ -646,7 +738,7 @@ class ApiController extends Controller
         $rules = [
             'category_id' => 'required|integer',
             'category_name' => 'required|string|remarks_rule',
-            'created_by' => 'required|phone_rule|numeric|exists:users,phone',
+            'created_by' => 'required',
         ];
 
         // Define the allowed parameters
@@ -657,7 +749,7 @@ class ApiController extends Controller
             return response()->json(['error' => 'Invalid number of parameters or unrecognized parameter provided.'], 422);
         }
 
-        $userACId = User::where('phone', $request->created_by)->value('ac');
+        $userACId = User::where('id',  JWTauth::user()->id)->value('ac');
 
         if (!$userACId) {
             return response()->json(['msg' => 'User or Assembly Constituency not found'], 404);
@@ -678,7 +770,7 @@ class ApiController extends Controller
         $categoryData['ac'] = $userACId;
 
         //district available
-        $userDistrictId = User::where('phone', $request->created_by)->value('dist_id');
+        $userDistrictId = User::where('id',  JWTauth::user()->id)->value('dist_id');
 
         if ($userDistrictId) {
             $categoryData['district_id'] = $userDistrictId;
@@ -736,7 +828,7 @@ class ApiController extends Controller
                 })->ignore(Category::where('id', $request->id)->first() ? Category::where('id', $request->id)->first()->id : null, 'id'), // Ignore the current Category ID when updating
             ],
             'is_active' => 'required|string|in:true,false',
-            'updated_by' => 'required|digits:10|numeric|exists:users,phone',
+            'updated_by' => 'required',
         ];
 
         $allowedParams = array_keys($rules);
@@ -765,7 +857,7 @@ class ApiController extends Controller
                 'category_id' => $request->category_id,
                 'category_name' => $request->category_name,
                 'is_active' => $request->is_active,
-
+                'updated_by' =>  JWTauth::user()->id,
             ]);
 
             return response()->json(['msg' => 'Category details updated successfully'], 200);
@@ -777,7 +869,7 @@ class ApiController extends Controller
     public function get_register_categories_list(Request $request)
     {
         $rules = [
-            'phone' => 'required|phone_rule|numeric|exists:users,phone',
+            'phone' => 'required',
         ];
 
         // Define the allowed parameters
@@ -795,7 +887,7 @@ class ApiController extends Controller
             return response()->json(['msg' => $firstErrorMessage], 400);
         }
 
-        $userACId = User::where('phone', $request->phone)->value('ac');
+        $userACId = User::where('id',  JWTauth::user()->id)->value('ac');
 
         if (!$userACId) {
             return response()->json(['message' => 'User or Assembly Constituency not found'], 404);
@@ -816,7 +908,7 @@ class ApiController extends Controller
         $rules = [
             'time_id' => 'required|integer',
             'time_name' => 'required|string|remarks_rule',
-            'created_by' => 'required|phone_rule|numeric|exists:users,phone',
+            'created_by' => 'required',
         ];
 
         // Define the allowed parameters
@@ -827,7 +919,7 @@ class ApiController extends Controller
             return response()->json(['error' => 'Invalid number of parameters or unrecognized parameter provided.'], 422);
         }
 
-        $userACId = User::where('phone', $request->created_by)->value('ac');
+        $userACId = User::where('id',  JWTauth::user()->id)->value('ac');
 
         if (!$userACId) {
             return response()->json(['msg' => 'User or Assembly Constituency not found'], 404);
@@ -848,7 +940,7 @@ class ApiController extends Controller
         $timeData['ac'] = $userACId;
 
         //district available
-        $userDistrictId = User::where('phone', $request->created_by)->value('dist_id');
+        $userDistrictId = User::where('id',  JWTauth::user()->id)->value('dist_id');
 
         if ($userDistrictId) {
             $timeData['district_id'] = $userDistrictId;
@@ -906,7 +998,7 @@ class ApiController extends Controller
                 })->ignore(Time::where('id', $request->id)->first() ? Time::where('id', $request->id)->first()->id : null, 'id'), // Ignore the current Time ID when updating
             ],
             'is_active' => 'required|string|in:true,false',
-            'updated_by' => 'required|digits:10|numeric|exists:users,phone',
+            'updated_by' => 'required',
         ];
 
         $allowedParams = array_keys($rules);
@@ -935,7 +1027,7 @@ class ApiController extends Controller
                 'time_id' => $request->time_id,
                 'time_name' => $request->time_name,
                 'is_active' => $request->is_active,
-
+                'updated_by' =>  JWTauth::user()->id,
             ]);
 
             return response()->json(['msg' => 'Time details updated successfully'], 200);
@@ -947,7 +1039,7 @@ class ApiController extends Controller
     public function get_register_times_list(Request $request)
     {
         $rules = [
-            'phone' => 'required|phone_rule|numeric|exists:users,phone',
+            'phone' => 'required',
         ];
 
         // Define the allowed parameters
@@ -965,7 +1057,7 @@ class ApiController extends Controller
             return response()->json(['msg' => $firstErrorMessage], 400);
         }
 
-        $userACId = User::where('phone', $request->phone)->value('ac');
+        $userACId = User::where('id',  JWTauth::user()->id)->value('ac');
 
         if (!$userACId) {
             return response()->json(['message' => 'User or Assembly Constituency not found'], 404);
@@ -984,7 +1076,7 @@ class ApiController extends Controller
     public function view_poll_reports(Request $request)
     {
         $rules = [
-            'requested_by' => 'required|phone_rule|numeric|exists:users,phone',
+            'requested_by' => 'required',
             // 'start' => ['required', 'date', 'date_format:Y-m-d', 'after_or_equal:2024-01-01', 'before_or_equal:' . now()->format('Y-m-d')],
             // 'end' => ['required', 'date', 'date_format:Y-m-d', 'after_or_equal:2024-01-01', 'before_or_equal:' . now()->format('Y-m-d')],
         ];
@@ -1006,21 +1098,23 @@ class ApiController extends Controller
 
         // $start = $request->input("start");
         // $end = $request->input("end");
-        $userPhone = $request->input("requested_by"); //get the Admin's phone no.
+        //$userPhone = $request->input("requested_by"); //get the Admin's phone no.
 
         // Find the Admin's AC based on their phone number
-        $userACId = User::where('phone', $userPhone)->value('ac');
+        $userACId = User::where('id',  JWTauth::user()->id)->value('ac');
 
         if (!$userACId) {
             return response()->json(['message' => 'User or Assembly Constituency not found'], 404);
         }
 
         //entered_by user's AC of poll reports should be the same as requested admin's AC
-        $phones = User::where('role_id', 200)->where('ac', $userACId)->pluck('phone'); //get the phone numbers having same AC as requested Admins
+        $phones = User::where('role_id', 200)->where('ac', $userACId)->pluck('id'); //get the phone numbers having same AC as requested Admins
+        $sector = User::where('id',  JWTauth::user()->id)->value('sectorno');
 
         if (PollReport::whereIn('entered_by', $phones)->count() > 0) {
             // Fetch poll reports within the specified date range and related to the Admin's AC
             $poll_reports = PollReport::whereIn('entered_by', $phones)
+            ->where('active', '1')
             ->with("categoryDetail","timeDetail")
                 //-> whereDate('created_at', '>=', $start)->whereDate('created_at', '<=', $end) //filter date range
                 ->orderBy('created_at', 'DESC')
@@ -1031,10 +1125,11 @@ class ApiController extends Controller
                         'category' => $item->categoryDetail ? $item->categoryDetail->category_name : null,
                         'two_hourly' => $item->timeDetail? $item->timeDetail->time_name : null,
                         'remark' => $item->remarks,
+                        'sector' => $item->sector,
                     ];
                 });
-    
-                return response()->json($transformed);
+                //$transformed.={'sector' => $sector},
+                return response()->json($transformed,);
         } else {
             return response()->json(['message' => 'No Poll Reports found for this Assembly Constituency!'], 404);
         }
@@ -1046,7 +1141,7 @@ class ApiController extends Controller
     public function get_dropdown_categories(Request $request)
     {
         $rules = [
-            'phone' => 'required|phone_rule|numeric|exists:users,phone',
+            'phone' => 'required',
         ];
 
         // Define the allowed parameters
@@ -1065,7 +1160,7 @@ class ApiController extends Controller
         }
 
         // Assuming you're using 'phone' from $request->all(), but you should use $request->input('phone')
-        $userACId = User::where('phone', $request->input('phone'))->value('ac');
+        $userACId = User::where('id',  JWTauth::user()->id)->value('ac');
 
         if (!$userACId) {
             return response()->json(['msg' => 'User or Assembly Constituency not found'], 404);
@@ -1090,7 +1185,7 @@ class ApiController extends Controller
     public function get_dropdown_times(Request $request)
     {
         $rules = [
-            'phone' => 'required|phone_rule|numeric|exists:users,phone',
+            'phone' => 'required',
         ];
 
         // Define the allowed parameters
@@ -1109,7 +1204,7 @@ class ApiController extends Controller
         }
 
         // Assuming you're using 'phone' from $request->all(), but you should use $request->input('phone')
-        $userACId = User::where('phone', $request->input('phone'))->value('ac');
+        $userACId = User::where('id',  JWTauth::user()->id)->value('ac');
 
         if (!$userACId) {
             return response()->json(['msg' => 'User or Assembly Constituency not found'], 404);
@@ -1143,12 +1238,12 @@ class ApiController extends Controller
                 //         $fail('The selected ' . $attribute . ' is invalid.');
                 //     }
                 // },
-            ],
-    
+            ],  
     
             // 'two_hourly' => 'nullable|integer|exists:times,id', //required_if:category,1
             'remarks' => 'required|string|remarks_rule|max:255',
-            'entered_by' => 'required|phone_rule|numeric|exists:users,phone',
+            'entered_by' => 'required',
+            
         ];
 
         // Define the allowed parameters
@@ -1168,7 +1263,7 @@ class ApiController extends Controller
 
         $enteredBy = $request->input('entered_by');
 
-        $user = User::where('phone', $enteredBy)->first();
+        $user = User::where('id',  JWTauth::user()->id)->first();
 
         if (!$user) {
             return response()->json(['message' => 'User not found'], 404);
@@ -1176,17 +1271,25 @@ class ApiController extends Controller
 
         // $userACId = $user->ac;
         $reportData = $validator->validated();
-
-        PollReport::create($reportData);
-
-        return response()->json(['message' => 'Poll Status Report has been send successfully!'], 200);
+        
+        //PollReport::create($reportData);
+        $pollReport = PollReport::create([
+            'category' => $request->category,
+            'two_hourly' => $request->two_hourly,
+            'remarks' => $request->remarks,
+            'entered_by' =>  JWTauth::user()->id,          
+            'active' => '1',
+            'sector' => User::where('id',  JWTauth::user()->id)->value('sectorno'), 
+        ]);
+        return response()->json($pollReport, 200);
+        //return response()->json(['message' => 'Poll Status Report has been send successfully!'], 200);
     }
 
     //view poll status reports sent by them
     public function display_poll_status_reports(Request $request)
     {
         $rules = [
-            'requested_by' => 'required|phone_rule|numeric|exists:users,phone',
+            'requested_by' => 'required',
             // 'start' => ['required', 'date', 'date_format:Y-m-d', 'after_or_equal:2024-01-01', 'before_or_equal:' . now()->format('Y-m-d')],
             // 'end' => ['required', 'date', 'date_format:Y-m-d', 'after_or_equal:2024-01-01', 'before_or_equal:' . now()->format('Y-m-d')],
         ];
@@ -1209,10 +1312,11 @@ class ApiController extends Controller
         // $start = $request->input("start");
         // $end = $request->input("end");
         $userPhone = $request->input("requested_by"); //get the logged in User's phone no.
-
-        if (PollReport::where('entered_by', $userPhone)->count() > 0) {
+        $sector = User::where('id',  JWTauth::user()->id)->value('sectorno');
+        if (PollReport::where('entered_by',  JWTauth::user()->id)->count() > 0) {
             // Fetch poll reports sent by them
-            $poll_reports = PollReport::where('entered_by', $userPhone)
+            $poll_reports = PollReport::where('entered_by',  JWTauth::user()->id)
+                ->where('active', '1')
                 ->with("categoryDetail","timeDetail")
                 ->orderBy('created_at', 'DESC')
                 ->get();
@@ -1223,6 +1327,7 @@ class ApiController extends Controller
                     'category' => $item->categoryDetail ? $item->categoryDetail->category_name : null,
                     'two_hourly' => $item->timeDetail? $item->timeDetail->time_name : null,
                     'remark' => $item->remarks,
+                    'sector' => $item->sector,
                 ];
             });
 
