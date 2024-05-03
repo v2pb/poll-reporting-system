@@ -23,6 +23,11 @@ class RoleSeeder extends Seeder
                 'role_id' => 200,
                 'role_name' => 'User',
                 'status' => true,
+            ],
+            [
+                'role_id' => 300,
+                'role_name' => 'Monitoring Role',
+                'status' => true,
             ]
         ]);
 

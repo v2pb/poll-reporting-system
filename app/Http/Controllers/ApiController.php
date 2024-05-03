@@ -139,9 +139,7 @@ class ApiController extends Controller
         return response()->json($transformedUser);
     }
 
-
-
-
+    /*--------------------------------- COMMON START -------------------------------------*/
 
     public function login(Request $request)
     {
@@ -408,9 +406,26 @@ class ApiController extends Controller
 
     //user management 
 
+    public function get_dropdown_roles(Request $request)
+    {
+        // Add is_active check to the query
+        $roleList = Role::whereNot('role_id', 100)
+                                ->where('status', true) // Ensure you check for active cells
+                                ->select(
+                                    'id as opt_id',
+                                    'role_name as opt_name'
+                                )
+                                ->get();
+
+        if ($roleList->isEmpty()) {
+            return response()->json(['message' => 'No active roles found'], 404);
+        }
+
+        return response()->json($roleList, 200);
+    }
+
     public function register_user(Request $request)
     {
-
         $rules = [
             'name' => 'required|string|max:255|name_rule',
             'phone' => 'required|numeric|phone_rule',
@@ -424,6 +439,7 @@ class ApiController extends Controller
             'psno' => 'nullable|remarks_rule',
             // 'ac' => 'required|integer', //get from created_by admin
             // 'dist_id' => 'nullable|integer', //get from created_by admin
+            'role_id' => 'integer|in:200,300', 
             'created_by' => 'required',
         ];
 
@@ -482,7 +498,7 @@ class ApiController extends Controller
             'phone' => hash('sha256', $request->phone),
             'password' => bcrypt($decryptedPassword),
             'ac' => $userACId,
-            'role_id' => 200, // 200 role_id for User
+            'role_id' => $request->role_id, // 200 role_id for User, 300 for Monitor
             'sectorno' => $request->sectorno,
             'psno' => $request->psno,
             'dist_id' => $userDistrictId,
@@ -524,6 +540,7 @@ class ApiController extends Controller
 
         return response()->json(['message' => 'Record deleted successfully'], 200);
     }
+    
     public function dispose_user(Request $request)
     {
         // $rules = [
@@ -595,7 +612,8 @@ class ApiController extends Controller
             'ac' => $user->ac,
             'sectorno' => $user->sectorno,
             'psno' => $user->psno,
-            'is_active' => $user->is_active
+            'is_active' => $user->is_active,
+            'role_id' => $user->role_id
         ];
 
         return response()->json($transformedUser);
@@ -621,6 +639,7 @@ class ApiController extends Controller
             'password' => ['nullable', 'string', 'regex:/^[a-zA-Z0-9\/\r\n+]*={0,2}$/', Rule::notIn(['<script>', '</script>'])],
             'iv' => ['nullable', 'string', Rule::notIn(['<script>', '</script>', 'min:16'])],
             'updated_by' => 'nullable',
+            'role_id' => 'integer|in:200,300',
         ];
 
         $allowedParams = array_keys($rules);
@@ -660,6 +679,7 @@ class ApiController extends Controller
             'psno' => $request->psno,
             'is_active' => $request->is_active === 'true', // Ensure boolean value is correctly interpreted
             'updated_by' =>  JWTauth::user()->id,
+            'role_id' => $request->role_id,
         ];
 
         if ($request->filled('password')) {
@@ -1339,4 +1359,69 @@ class ApiController extends Controller
 
 
     /*------------------------------ USER END ------------------------------------*/
+    /*------------------------------ MONITORING ROLE START (ROLE: 300)------------------------------------*/
+    //poll reports
+    public function monitor_poll_reports(Request $request)
+    {
+        // $rules = [
+            // 'requested_by' => 'required',
+            // 'start' => ['required', 'date', 'date_format:Y-m-d', 'after_or_equal:2024-01-01', 'before_or_equal:' . now()->format('Y-m-d')],
+            // 'end' => ['required', 'date', 'date_format:Y-m-d', 'after_or_equal:2024-01-01', 'before_or_equal:' . now()->format('Y-m-d')],
+        // ];
+
+        // Define the allowed parameters
+        // $allowedParams = array_keys($rules);
+
+        // Check if the request only contains the allowed parameters
+        // if (count($request->all()) !== count($allowedParams) || !empty(array_diff(array_keys($request->all()), $allowedParams))) {
+        //     return response()->json(['error' => 'Invalid number of parameters or unrecognized parameter provided.'], 422);
+        // }
+
+        // $validator = Validator::make($request->all(), $rules);
+
+        // if ($validator->fails()) {
+        //     $firstErrorMessage = $validator->errors()->first();
+        //     return response()->json(['msg' => $firstErrorMessage], 400);
+        // }
+
+        // $start = $request->input("start");
+        // $end = $request->input("end");
+        //$userPhone = $request->input("requested_by"); //get the Admin's phone no.
+
+        // Find the Admin's AC based on their phone number
+        $userACId = User::where('id',  JWTauth::user()->id)->value('ac');
+
+        if (!$userACId) {
+            return response()->json(['message' => 'User or Assembly Constituency not found'], 404);
+        }
+
+        //entered_by user's AC of poll reports should be the same as requested admin's AC
+        $phones = User::where('role_id', 200)->where('ac', $userACId)->pluck('id'); //get the phone numbers having same AC as requested Admins
+        $sector = User::where('id',  JWTauth::user()->id)->value('sectorno');
+
+        if (PollReport::whereIn('entered_by', $phones)->count() > 0) {
+            // Fetch poll reports within the specified date range and related to the Admin's AC
+            $poll_reports = PollReport::whereIn('entered_by', $phones)
+                                        ->where('active', '1')
+                                        ->with("categoryDetail","timeDetail")
+                                        //-> whereDate('created_at', '>=', $start)->whereDate('created_at', '<=', $end) //filter date range
+                                        ->orderBy('created_at', 'DESC')
+                                        ->get();
+            $transformed = $poll_reports->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'category' => $item->categoryDetail ? $item->categoryDetail->category_name : null,
+                    'two_hourly' => $item->timeDetail? $item->timeDetail->time_name : null,
+                    'remark' => $item->remarks,
+                    'sector' => $item->sector,
+                ];
+            });
+            //$transformed.={'sector' => $sector},
+            return response()->json($transformed,);
+        } else {
+            return response()->json(['message' => 'No Poll Reports found for this Assembly Constituency!'], 404);
+        }
+    }
+  
+    /*------------------------------ MONITORING END ------------------------------------*/
 }

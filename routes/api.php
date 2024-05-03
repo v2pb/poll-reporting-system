@@ -28,6 +28,7 @@ Route::middleware('admin')->group(function () {
     Route::post('update_admin', [ApiController::class, 'update_admin']);
 
     //User Registration Form 
+    Route::post('get_dropdown_roles', [ApiController::class, 'get_dropdown_roles']);
     Route::post('register_user', [ApiController::class, 'register_user']);
     Route::post('get_user_data', [ApiController::class, 'get_user_data']);
     Route::post('update_user', [ApiController::class, 'update_user']);
@@ -56,6 +57,10 @@ Route::middleware('user')->group(function () {
     Route::post('display_poll_status_reports', [ApiController::class, 'display_poll_status_reports']);
     Route::post('get_dropdown_categories', [ApiController::class, 'get_dropdown_categories']);
     Route::post('get_dropdown_times', [ApiController::class, 'get_dropdown_times']);
+});
+
+Route::middleware('monitor')->group(function () {
+    Route::post('monitor_poll_reports', [ApiController::class, 'monitor_poll_reports']);
 });
 
 //auth
