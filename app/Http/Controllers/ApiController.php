@@ -180,7 +180,7 @@ class ApiController extends Controller
             }
 
             $hashedPhone = hash('sha256', $decryptedPhone); //uncomment
-            // $decryptedPhone = $hashedPhone; //comment
+            $decryptedPhone = $hashedPhone; //comment
 
             //$user = User::where('phone', $hashedPhone)->first();
             $user = User::where('phone', $decryptedPhone)->first();
@@ -241,7 +241,7 @@ class ApiController extends Controller
 
             //if ($tokenEntry->save()) {
                 $user = User::where('phone', $decryptedPhone)->first();
-                return response()->json(['token' => $token, 'role' => $user['role_id'], "role_name" => $user->role->role_name, "name" => $user["name"], "msg" => "Successful"], 200);
+                return response()->json(['token' => $token, 'role' => $user['role_id'], 'sector' => $user['sectorno'], "role_name" => $user->role->role_name, "name" => $user["name"], "msg" => "Successful"], 200);
             //} else {
                 //return response()->json(['msg' => 'The Token details could not be saved!'], 401);
             //}
@@ -260,7 +260,7 @@ class ApiController extends Controller
 
         $rules = [
             'name' => 'required|string|max:255|name_rule',
-            'phone' => 'required|numeric|phone_rule|unique:users',
+            'phone' => 'required|numeric|phone_rule',
             'password' => [
                 'required',
                 'min:6',
@@ -753,6 +753,7 @@ class ApiController extends Controller
         // If the user exists and has the correct role_id, fetch other users excluding this one
         $users = User::where('ac', $userACId)
             ->where('role_id', "200")
+            ->orWhere('role_id', "300")
             ->get();
 
         // if ($users->isEmpty()) {
